@@ -36,7 +36,7 @@ if __name__ == '__main__':
         os.mkdir(args.results_dir)
 
 
-    dataset_with_confounders_filename = '{}/{}_dataset_with_substitute_confounders_tf.txt'.format(args.results_dir,
+    dataset_with_confounders_filename = '{}/{}_dataset_with_substitute_confounders.txt'.format(args.results_dir,
                                                                                                args.exp_name)
     factor_model_hyperparams_file = '{}/{}_factor_model_best_hyperparams.txt'.format(args.results_dir, args.exp_name)
 
