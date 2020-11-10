@@ -22,7 +22,7 @@ logging.getLogger().setLevel(logging.INFO)
 
 ROOT_FOLDER = rmsn.configs.ROOT_FOLDER
 expt_name = "treatment_effects"
-
+os.environ['CUDA_VISIBLE_DEVICES']='0'
 
 def propensity_generation(dataset_map, MODEL_ROOT, b_use_predicted_confounders,
                           b_use_oracle_confounders=False, b_remove_x1=False):
@@ -46,8 +46,10 @@ def propensity_generation(dataset_map, MODEL_ROOT, b_use_predicted_confounders,
     if tf_device == "cpu":
         tf_config = tf.ConfigProto(log_device_placement=False, device_count={'GPU': 0})
     else:
-        tf_config= tf.ConfigProto(log_device_placement=False, device_count={'GPU': 1})
-        tf_config.gpu_options.allow_growth = True
+        gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.6)
+        tf_config = tf.ConfigProto(gpu_options=gpu_options, log_device_placement=False)
+        # tf_config= tf.ConfigProto(log_device_placement=False, device_count={'GPU': 1})
+        # tf_config.gpu_options.allow_growth = True
 
     # Config + activation functions
     activation_map = {'rnn_propensity_weighted': ("elu", 'linear'),

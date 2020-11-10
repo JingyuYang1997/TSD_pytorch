@@ -16,6 +16,7 @@ import tensorflow as tf
 import pandas as pd
 import numpy as np
 import logging
+from tqdm import tqdm
 import os
 import pickle
 
@@ -116,7 +117,7 @@ def train(net_name,
         num_minibatches = int(np.ceil(training_dataset['scaled_inputs'].shape[0] / model_parameters['minibatch_size']))
 
         i = 1
-        epoch_count = 1
+        # epoch_count = 1
         step_count = 1
         min_loss = np.inf
         with sess.as_default():
@@ -124,9 +125,8 @@ def train(net_name,
             sess.run(tf.global_variables_initializer())
 
             optimisation_summary = pd.Series([])
-
-            while True:
-                try:
+            for epoch_count in tqdm(range(1, num_epochs+1)):
+                for step_count in range(1,num_minibatches+1):
                     loss, _ = sess.run([training_handles['loss'],
                                         training_handles['optimiser']])
 
@@ -140,83 +140,168 @@ def train(net_name,
                             model.net_name,
                             additonal_info))
 
-                    if step_count == num_minibatches:
 
-                        # Reinit datasets
-                        sess.run(validation_handles['initializer'])
+                # Reinit datasets
+                sess.run(validation_handles['initializer'])
 
-                        means = []
-                        UBs = []
-                        LBs = []
-                        while True:
-                            try:
-                                mean, upper_bound, lower_bound = sess.run([validation_handles['mean'],
-                                                                           validation_handles['upper_bound'],
-                                                                           validation_handles['lower_bound']])
+                means = []
+                UBs = []
+                LBs = []
+                while True:
+                    try:
+                        mean, upper_bound, lower_bound = sess.run([validation_handles['mean'],
+                                                                   validation_handles['upper_bound'],
+                                                                   validation_handles['lower_bound']])
 
-                                means.append(mean)
-                                UBs.append(upper_bound)
-                                LBs.append(lower_bound)
-                            except tf.errors.OutOfRangeError:
-                                break
+                        means.append(mean)
+                        UBs.append(upper_bound)
+                        LBs.append(lower_bound)
+                    except tf.errors.OutOfRangeError:
+                        break
 
-                        means = np.concatenate(means, axis=0)
+                means = np.concatenate(means, axis=0)
 
-                        """
-                        means = np.concatenate(means, axis=0)*training_dataset['output_stds'] \
-                                + training_dataset['output_means']
-                        UBs = np.concatenate(UBs, axis=0)*training_dataset['output_stds'] \
-                              + training_dataset['output_means']
-                        LBs = np.concatenate(LBs, axis=0)*training_dataset['output_stds'] \
-                              + training_dataset['output_means']
-                        """
+                """
+                means = np.concatenate(means, axis=0)*training_dataset['output_stds'] \
+                        + training_dataset['output_means']
+                UBs = np.concatenate(UBs, axis=0)*training_dataset['output_stds'] \
+                      + training_dataset['output_means']
+                LBs = np.concatenate(LBs, axis=0)*training_dataset['output_stds'] \
+                      + training_dataset['output_means']
+                """
 
 
-                        active_entries = validation_dataset['active_entries']
-                        output = validation_dataset['outputs']
+                active_entries = validation_dataset['active_entries']
+                output = validation_dataset['outputs']
 
-                        if model_parameters['performance_metric'] == "mse":
-                            validation_loss = np.sum((means - output)**2 * active_entries) / np.sum(active_entries)
+                if model_parameters['performance_metric'] == "mse":
+                    validation_loss = np.sum((means - output)**2 * active_entries) / np.sum(active_entries)
 
-                        elif model_parameters['performance_metric'] == "xentropy":
-                            _, _,features_size = output.shape
-                            partition_idx = features_size
+                elif model_parameters['performance_metric'] == "xentropy":
+                    _, _,features_size = output.shape
+                    partition_idx = features_size
 
-                            # Do binary first
-                            validation_loss = np.sum((output[:, :, :partition_idx] * -np.log(means[:, :, :partition_idx] + 1e-8)
-                                                     + (1 - output[:, :, :partition_idx]) * -np.log(1 - means[:, :, :partition_idx] + 1e-8))
-                                                     * active_entries[:, :, :partition_idx]) \
-                                              / np.sum(active_entries[:, :, :partition_idx])
+                    # Do binary first
+                    validation_loss = np.sum((output[:, :, :partition_idx] * -np.log(means[:, :, :partition_idx] + 1e-8)
+                                             + (1 - output[:, :, :partition_idx]) * -np.log(1 - means[:, :, :partition_idx] + 1e-8))
+                                             * active_entries[:, :, :partition_idx]) \
+                                      / np.sum(active_entries[:, :, :partition_idx])
 
-                        optimisation_summary[epoch_count] = validation_loss
+                optimisation_summary[epoch_count] = validation_loss
 
-                        # Compute validation loss
-                        if (verbose == True):
-                            logging.info("Epoch {} Summary| Validation loss = {} | net = {} | info = {}".format(
-                                epoch_count,
-                                validation_loss,
-                                model.net_name,
-                                additonal_info))
+                # Compute validation loss
+                if (verbose == True):
+                    logging.info("Epoch {} Summary| Validation loss = {} | net = {} | info = {}".format(
+                        epoch_count,
+                        validation_loss,
+                        model.net_name,
+                        additonal_info))
 
-                        if np.isnan(validation_loss):
-                            logging.warning("NAN Loss found, terminating routine")
-                            break
-
-                        # Save model and loss trajectories
-                        if validation_loss < min_loss and epoch_count > min_epochs:
-                            cp_name = serialisation_name + "_optimal"
-                            helpers.save_network(sess, model_folder, cp_name, optimisation_summary)
-                            min_loss = validation_loss
-
-                        # Update
-                        epoch_count += 1
-                        step_count = 0
-
-                    step_count += 1
-                    i += 1
-
-                except tf.errors.OutOfRangeError:
+                if np.isnan(validation_loss):
+                    logging.warning("NAN Loss found, terminating routine")
                     break
+
+                # Save model and loss trajectories
+                if validation_loss < min_loss and epoch_count > min_epochs:
+                    cp_name = serialisation_name + "_optimal"
+                    helpers.save_network(sess, model_folder, cp_name, optimisation_summary)
+                    min_loss = validation_loss
+
+                # Update
+                # epoch_count += 1
+            #     # i += 1
+            # while True:
+            #     try:
+            #         loss, _ = sess.run([training_handles['loss'],
+            #                             training_handles['optimiser']])
+            #
+            #         # Flog output
+            #         if (verbose == True):
+            #             logging.info("Epoch {} | iteration = {} of {}, loss = {} | net = {} | info = {}".format(
+            #                 epoch_count,
+            #                 step_count,
+            #                 num_minibatches,
+            #                 loss,
+            #                 model.net_name,
+            #                 additonal_info))
+            #
+            #         if step_count == num_minibatches:
+            #
+            #             # Reinit datasets
+            #             sess.run(validation_handles['initializer'])
+            #
+            #             means = []
+            #             UBs = []
+            #             LBs = []
+            #             while True:
+            #                 try:
+            #                     mean, upper_bound, lower_bound = sess.run([validation_handles['mean'],
+            #                                                                validation_handles['upper_bound'],
+            #                                                                validation_handles['lower_bound']])
+            #
+            #                     means.append(mean)
+            #                     UBs.append(upper_bound)
+            #                     LBs.append(lower_bound)
+            #                 except tf.errors.OutOfRangeError:
+            #                     break
+            #
+            #             means = np.concatenate(means, axis=0)
+            #
+            #             """
+            #             means = np.concatenate(means, axis=0)*training_dataset['output_stds'] \
+            #                     + training_dataset['output_means']
+            #             UBs = np.concatenate(UBs, axis=0)*training_dataset['output_stds'] \
+            #                   + training_dataset['output_means']
+            #             LBs = np.concatenate(LBs, axis=0)*training_dataset['output_stds'] \
+            #                   + training_dataset['output_means']
+            #             """
+            #
+            #
+            #             active_entries = validation_dataset['active_entries']
+            #             output = validation_dataset['outputs']
+            #
+            #             if model_parameters['performance_metric'] == "mse":
+            #                 validation_loss = np.sum((means - output)**2 * active_entries) / np.sum(active_entries)
+            #
+            #             elif model_parameters['performance_metric'] == "xentropy":
+            #                 _, _,features_size = output.shape
+            #                 partition_idx = features_size
+            #
+            #                 # Do binary first
+            #                 validation_loss = np.sum((output[:, :, :partition_idx] * -np.log(means[:, :, :partition_idx] + 1e-8)
+            #                                          + (1 - output[:, :, :partition_idx]) * -np.log(1 - means[:, :, :partition_idx] + 1e-8))
+            #                                          * active_entries[:, :, :partition_idx]) \
+            #                                   / np.sum(active_entries[:, :, :partition_idx])
+            #
+            #             optimisation_summary[epoch_count] = validation_loss
+            #
+            #             # Compute validation loss
+            #             if (verbose == True):
+            #                 logging.info("Epoch {} Summary| Validation loss = {} | net = {} | info = {}".format(
+            #                     epoch_count,
+            #                     validation_loss,
+            #                     model.net_name,
+            #                     additonal_info))
+            #
+            #             if np.isnan(validation_loss):
+            #                 logging.warning("NAN Loss found, terminating routine")
+            #                 break
+            #
+            #             # Save model and loss trajectories
+            #             if validation_loss < min_loss and epoch_count > min_epochs:
+            #                 cp_name = serialisation_name + "_optimal"
+            #                 helpers.save_network(sess, model_folder, cp_name, optimisation_summary)
+            #                 min_loss = validation_loss
+            #
+            #             # Update
+            #             epoch_count += 1
+            #             step_count = 0
+            #
+            #         step_count += 1
+            #         i += 1
+            #
+            #     except tf.errors.OutOfRangeError:
+            #         break
 
             # Save final
             cp_name = serialisation_name + "_final"

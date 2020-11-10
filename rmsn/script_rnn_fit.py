@@ -18,6 +18,7 @@ import argparse
 from rmsn.core_routines import train
 import rmsn.core_routines as core
 
+os.environ["CUDA_VISIBLE_DEVICES"]='0'
 ROOT_FOLDER = rmsn.configs.ROOT_FOLDER
 #MODEL_ROOT = configs.MODEL_ROOT
 logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.INFO)
@@ -29,7 +30,7 @@ logging.getLogger().setLevel(logging.INFO)
 specifications = {
      'rnn_propensity_weighted': (0.1, 4, 100, 64, 0.01, 0.5),
      'treatment_rnn_action_inputs_only': (0.1, 3, 100, 128, 0.01, 2.0),
-     'treatment_rnn': (0.1, 4, 100, 64, 0.01, 1.0),
+     'treatment_rnn': (0.1, 4, 100, 128, 0.01, 1.0),
 }
 ####################################################################################################################
 
@@ -74,8 +75,11 @@ def rnn_fit(dataset_map, networks_to_train, MODEL_ROOT, b_use_predicted_confound
     if tf_device == "cpu":
         config = tf.ConfigProto(log_device_placement=False, device_count={'GPU': 0})
     else:
-        config = tf.ConfigProto(log_device_placement=False, device_count={'GPU': 1})
-        config.gpu_options.allow_growth = True
+        # config = tf.ConfigProto(log_device_placement=False, device_count={'GPU': 1})
+        # config.gpu_options.allow_growth = True
+
+        gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.6)
+        config = tf.ConfigProto(gpu_options=gpu_options, log_device_placement=False)
 
     training_data = dataset_map['training_data']
     validation_data = dataset_map['validation_data']
@@ -83,7 +87,7 @@ def rnn_fit(dataset_map, networks_to_train, MODEL_ROOT, b_use_predicted_confound
 
     # Start Running hyperparam opt
     opt_params = {}
-    for net_name in tqdm(net_names):
+    for net_name in net_names:
 
         # Re-run hyperparameter optimisation if parameters are not specified, otherwise train with defined params
         max_hyperparam_runs = 3 if net_name not in specifications else 1
@@ -166,13 +170,15 @@ def rnn_fit(dataset_map, networks_to_train, MODEL_ROOT, b_use_predicted_confound
                                   hidden_activation, output_activation,
                                   config,
                                   "hyperparam opt: {} of {}".format(hyperparam_count,
-                                                                    max_hyperparam_runs))
+                                                                    max_hyperparam_runs),
+                                   verbose=False)
 
             hyperparam_count = len(hyperparam_opt.columns)
-            if hyperparam_count >= max_hyperparam_runs:
-                opt_params[net_name] = hyperparam_opt.T
-                break
-
+            # if hyperparam_count >= max_hyperparam_runs:
+            #     opt_params[net_name] = hyperparam_opt.T
+            #     break
+            opt_params[net_name] = hyperparam_opt.T
+            break
         logging.info("Done")
         logging.info(hyperparam_opt.T)
 

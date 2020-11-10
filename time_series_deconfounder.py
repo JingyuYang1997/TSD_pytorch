@@ -78,12 +78,13 @@ def train_rmsn(dataset_map, model_name, b_use_predicted_confounders):
         os.mkdir(MODEL_ROOT)
         print("Directory ", MODEL_ROOT, " Created ")
 
+    print("fitting propensity_networks")
     rnn_fit(dataset_map=dataset_map, networks_to_train='propensity_networks', MODEL_ROOT=MODEL_ROOT,
             b_use_predicted_confounders=b_use_predicted_confounders)
-
+    print("generating propensity scores")
     propensity_generation(dataset_map=dataset_map, MODEL_ROOT=MODEL_ROOT,
                           b_use_predicted_confounders=b_use_predicted_confounders)
-
+    print("training ")
     rnn_fit(networks_to_train='encoder', dataset_map=dataset_map, MODEL_ROOT=MODEL_ROOT,
             b_use_predicted_confounders=b_use_predicted_confounders)
 

@@ -59,9 +59,12 @@ if __name__ == '__main__':
         train_index, val_index = next(shuffle_split.split(dataset['covariates'][train_index, :, 0]))
         dataset_map = get_dataset_splits(dataset, train_index, val_index, test_index, use_predicted_confounders=True)
 
+
         logging.info('Fitting counfounded recurrent marginal structural networks.')
         rmse_without_confounders = train_rmsn(dataset_map, 'rmsn_' + str(args.exp_name), b_use_predicted_confounders=False)
-
+        print('********************')
+        print(rmse_without_confounders)
+        print('********************')
         # logging.info(
         #     'Fitting deconfounded (D_Z = {}) recurrent marginal structural networks.'.format(
         #         args.num_substitute_confounders))
