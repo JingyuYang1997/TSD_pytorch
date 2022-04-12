@@ -4,4 +4,3 @@ This is a tentative **Pytorch** implementation of the paper "Time Series Deconfo
 
 Refer to `main_run.py` for running.
 
-In my case in the synthetic experiment, the counfounded prediction is with RMSE value 3.0452 while the deconfounded with 2.6390 (original tensorflow). My pytorch implementation achieves a marginally better result with 2.5902. 
